@@ -107,6 +107,53 @@ const getLoggedUser = catchError(async(req, res) => {
   return res.json(req.user)
 })
 
+const resetPassword = catchError(async(req, res) => {
+  const { email, frontBaseUrl } = req.body;
+  const user = await User.findOne({ where: { email } })
+
+
+  const code = require('crypto').randomBytes(32).toString('hex');
+  const link = `${frontBaseUrl}/${code}`;
+  
+  await EmailCode.create({
+    code: code,
+    userId: user.id,
+  });
+  
+  await sendEmail({
+    to: email,
+    subject: 'Verificar para restablecer contraseña',
+    html: `
+    <h1>Hola ${user.firstName} ${user.lastName}</h1>
+    <p>Necesitas recuperar tu cuenta?</p>
+    <p>Para cambiar tu contraseña, haz clic en el siguiente enlace: </p>
+    <a href="${link}">${link}</a>
+    `
+  });
+  return res.status(201).json(user);
+})
+
+const codeResetPassword = catchError(async(req, res) => {
+  const { code } = req.params;
+  const emailCode = await EmailCode.findOne({ where: { code: code } });
+  if (!emailCode) return res.status(401).json({ message: 'Invalid code' });
+
+  const user =await User.findByPk(emailCode.userId);
+  const { id } = user;
+  const { password } = req.body;
+  const encriptedPassword = await bcrypt.hash(password, 10);
+
+  const result = await User.update(
+      { password: encriptedPassword },
+      { where: {id}, returning: true }
+  );
+
+  await emailCode.destroy();
+
+  return res.json(result);
+});
+
+
 module.exports = {
   getAll,
   create,
@@ -115,5 +162,7 @@ module.exports = {
   update,
   verifyCode,
   login,
-  getLoggedUser
+  getLoggedUser,
+  resetPassword,
+  codeResetPassword
 }
