@@ -110,6 +110,8 @@ const getLoggedUser = catchError(async(req, res) => {
 const resetPassword = catchError(async(req, res) => {
   const { email, frontBaseUrl } = req.body;
   const user = await User.findOne({ where: { email } })
+  if (!user) return res.status(401).json({ message: 'Invalid user' });
+
 
 
   const code = require('crypto').randomBytes(32).toString('hex');
